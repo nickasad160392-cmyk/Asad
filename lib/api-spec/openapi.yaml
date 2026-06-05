@@ -1,22 +1,29 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Employee Attendance API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: attendance
+    description: Attendance records
+  - name: leave
+    description: Leave and permit requests
+  - name: users
+    description: User management
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +31,353 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with email/ID and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attendance/check-in:
+    post:
+      operationId: checkIn
+      tags: [attendance]
+      summary: Employee check-in with selfie and GPS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceCheckInput"
+      responses:
+        "201":
+          description: Checked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+        "400":
+          description: Already checked in or outside geofence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attendance/check-out:
+    post:
+      operationId: checkOut
+      tags: [attendance]
+      summary: Employee check-out with selfie and GPS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceCheckInput"
+      responses:
+        "200":
+          description: Checked out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+        "400":
+          description: Not checked in or outside geofence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attendance/today:
+    get:
+      operationId: getTodayAttendance
+      tags: [attendance]
+      summary: Get today's attendance record for the current user
+      responses:
+        "200":
+          description: Today's attendance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/history:
+    get:
+      operationId: getAttendanceHistory
+      tags: [attendance]
+      summary: Get attendance history for current user
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Month in YYYY-MM format"
+      responses:
+        "200":
+          description: Attendance records list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/monthly-summary:
+    get:
+      operationId: getMonthlySummary
+      tags: [attendance]
+      summary: Get monthly summary for current user
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Month in YYYY-MM format"
+      responses:
+        "200":
+          description: Monthly summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlySummary"
+
+  /attendance/admin/all:
+    get:
+      operationId: adminGetAllAttendance
+      tags: [attendance]
+      summary: Admin - get all employees attendance
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All attendance records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceRecord"
+
+  /leave-requests:
+    get:
+      operationId: getLeaveRequests
+      tags: [leave]
+      summary: Get current user's leave requests
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Leave requests list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveRequest"
+
+    post:
+      operationId: submitLeaveRequest
+      tags: [leave]
+      summary: Submit a leave or permit request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveRequestInput"
+      responses:
+        "201":
+          description: Leave request submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+
+  /leave-requests/admin:
+    get:
+      operationId: adminGetLeaveRequests
+      tags: [leave]
+      summary: Admin - get all leave requests
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        "200":
+          description: All leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveRequest"
+
+  /leave-requests/{id}/approve:
+    patch:
+      operationId: approveLeaveRequest
+      tags: [leave]
+      summary: Admin - approve a leave request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+
+  /leave-requests/{id}/reject:
+    patch:
+      operationId: rejectLeaveRequest
+      tags: [leave]
+      summary: Admin - reject a leave request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+
+  /users:
+    get:
+      operationId: getUsers
+      tags: [users]
+      summary: Admin - get all users/employees
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUserById
+      tags: [users]
+      summary: Get a user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [attendance]
+      summary: Get dashboard stats for admin
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +388,270 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    LoginInput:
+      type: object
+      properties:
+        identifier:
+          type: string
+          description: Email or employee ID
+        password:
+          type: string
+      required:
+        - identifier
+        - password
+
+    AuthResult:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        message:
+          type: string
+      required:
+        - user
+        - message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [employee, admin, hr]
+        department:
+          type: string
+        position:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - employeeId
+        - name
+        - email
+        - role
+        - department
+        - position
+        - createdAt
+
+    AttendanceCheckInput:
+      type: object
+      properties:
+        selfieBase64:
+          type: string
+          description: Base64 encoded front camera photo
+        latitude:
+          type: number
+        longitude:
+          type: number
+        notes:
+          type: ["string", "null"]
+      required:
+        - selfieBase64
+        - latitude
+        - longitude
+
+    AttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        date:
+          type: string
+          description: Date in YYYY-MM-DD format
+        checkInTime:
+          type: ["string", "null"]
+        checkOutTime:
+          type: ["string", "null"]
+        checkInSelfie:
+          type: ["string", "null"]
+        checkOutSelfie:
+          type: ["string", "null"]
+        checkInLat:
+          type: ["number", "null"]
+        checkInLng:
+          type: ["number", "null"]
+        checkOutLat:
+          type: ["number", "null"]
+        checkOutLng:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [present, late, absent, permit, holiday]
+        latenessMinutes:
+          type: ["integer", "null"]
+        overtimeMinutes:
+          type: ["integer", "null"]
+        workHours:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - id
+        - userId
+        - date
+        - status
+
+    MonthlySummary:
+      type: object
+      properties:
+        month:
+          type: string
+        totalWorkDays:
+          type: integer
+        presentDays:
+          type: integer
+        lateDays:
+          type: integer
+        absentDays:
+          type: integer
+        permitDays:
+          type: integer
+        totalWorkHours:
+          type: number
+        totalOvertimeMinutes:
+          type: integer
+        totalLatenessMinutes:
+          type: integer
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceRecord"
+      required:
+        - month
+        - totalWorkDays
+        - presentDays
+        - lateDays
+        - absentDays
+        - permitDays
+        - totalWorkHours
+        - totalOvertimeMinutes
+        - totalLatenessMinutes
+        - records
+
+    LeaveRequestInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [sick, annual, personal, emergency]
+        startDate:
+          type: string
+          description: YYYY-MM-DD
+        endDate:
+          type: string
+          description: YYYY-MM-DD
+        reason:
+          type: string
+        attachmentBase64:
+          type: ["string", "null"]
+      required:
+        - type
+        - startDate
+        - endDate
+        - reason
+
+    LeaveRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+          enum: [sick, annual, personal, emergency]
+        startDate:
+          type: string
+        endDate:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        rejectionReason:
+          type: ["string", "null"]
+        reviewedBy:
+          type: ["integer", "null"]
+        reviewedAt:
+          type: ["string", "null"]
+        attachmentBase64:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - id
+        - userId
+        - type
+        - startDate
+        - endDate
+        - reason
+        - status
+        - createdAt
+
+    RejectInput:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    DashboardStats:
+      type: object
+      properties:
+        month:
+          type: string
+        totalEmployees:
+          type: integer
+        presentToday:
+          type: integer
+        lateToday:
+          type: integer
+        absentToday:
+          type: integer
+        pendingLeaveRequests:
+          type: integer
+        monthlyAttendanceRate:
+          type: number
+        avgWorkHours:
+          type: number
+      required:
+        - month
+        - totalEmployees
+        - presentToday
+        - lateToday
+        - absentToday
+        - pendingLeaveRequests
+        - monthlyAttendanceRate
+        - avgWorkHours
