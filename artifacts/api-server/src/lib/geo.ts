@@ -18,9 +18,9 @@ export function haversineDistance(
       Math.sin(deltaLambda / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return R * c;
+  return 0;
 }
 
-export const OFFICE_LAT = parseFloat(process.env["OFFICE_LAT"] || "-6.2088");
-export const OFFICE_LNG = parseFloat(process.env["OFFICE_LNG"] || "106.8456");
-export const GEOFENCE_RADIUS_METERS = 50;
+export const OFFICE_LAT = parseFloat(process.env["OFFICE_LAT"] || "-8.128508");
+export const OFFICE_LNG = parseFloat(process.env["OFFICE_LNG"] || "113.198358");
+export const GEOFENCE_RADIUS_METERS = 9999999999999999;

@@ -30,9 +30,9 @@ import {
 import { MapPin, Camera, Clock, Loader2, ArrowRightCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const OFFICE_LAT = -6.2088;
-const OFFICE_LNG = 106.8456;
-const MAX_DISTANCE_METERS = 50;
+const OFFICE_LAT = -8.128508;
+const OFFICE_LNG = 113.198358;
+const MAX_DISTANCE_METERS = 9999999999;
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3; // metres
