@@ -15,10 +15,9 @@ const MODEL_URL = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights";
 
 type AbsenStatus =
   | "idle"
-  | "loading-model"
+  | "starting"
   | "camera-error"
-  | "detecting"
-  | "ready"
+  | "live"
   | "capturing"
   | "submitting"
   | "done";
@@ -36,9 +35,9 @@ export default function AbsenPage() {
   const [status, setStatus] = useState<AbsenStatus>("idle");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [faceDetected, setFaceDetected] = useState(false);
+  const [faceApiReady, setFaceApiReady] = useState(false);
   const [gps, setGps] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [modelLoaded, setModelLoaded] = useState(false);
 
   const checkIn = useCheckIn();
   const checkOut = useCheckOut();
@@ -50,106 +49,127 @@ export default function AbsenPage() {
   const hasCheckedOut = !!today?.checkOutTime;
 
   const stopCamera = useCallback(() => {
-    if (detectLoopRef.current) cancelAnimationFrame(detectLoopRef.current);
+    if (detectLoopRef.current) {
+      cancelAnimationFrame(detectLoopRef.current);
+      detectLoopRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   }, []);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  const loadFaceApiModel = useCallback(async () => {
-    if (modelLoaded) return faceApiRef.current;
-    setStatus("loading-model");
-    try {
-      const faceapi = await import("face-api.js");
-      faceApiRef.current = faceapi;
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      setModelLoaded(true);
-      return faceapi;
-    } catch (err) {
-      console.error("Model load error:", err);
-      return null;
+  // Assign stream to video whenever video element mounts and stream exists
+  const videoCallbackRef = useCallback((el: HTMLVideoElement | null) => {
+    (videoRef as any).current = el;
+    if (el && streamRef.current) {
+      el.srcObject = streamRef.current;
+      el.play().catch(() => {});
     }
-  }, [modelLoaded]);
+  }, []);
 
-  const startCamera = useCallback(async () => {
+  const startDetectionLoop = useCallback((faceapi: any) => {
+    if (detectLoopRef.current) cancelAnimationFrame(detectLoopRef.current);
+    const loop = async () => {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2) {
+        detectLoopRef.current = requestAnimationFrame(loop);
+        return;
+      }
+      try {
+        const opts = new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 });
+        const det = await faceapi.detectSingleFace(video, opts);
+        setFaceDetected(!!(det && det.score >= 0.5));
+      } catch {
+        // ignore detection errors
+      }
+      detectLoopRef.current = requestAnimationFrame(loop);
+    };
+    detectLoopRef.current = requestAnimationFrame(loop);
+  }, []);
+
+  const handleStart = useCallback(async () => {
+    if (hasCheckedOut) { toast.info("Absensi hari ini sudah selesai."); return; }
+
+    // 1. Immediately show the camera UI (video element will mount)
+    setStatus("starting");
+    setFaceDetected(false);
+    setFaceApiReady(false);
+
+    // 2. Start camera
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
         audio: false,
       });
       streamRef.current = stream;
+      // Attach to video element (it should be mounted now)
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try { await videoRef.current.play(); } catch {}
       }
-      return true;
+      setStatus("live");
     } catch (err: any) {
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
         setErrorMsg("Izin kamera ditolak. Buka Pengaturan Browser > Izin > Kamera, lalu refresh halaman.");
       } else if (err.name === "NotFoundError") {
         setErrorMsg("Kamera tidak ditemukan. Perangkat Anda tidak memiliki kamera depan.");
       } else {
-        setErrorMsg("Kamera tidak dapat diakses. Pastikan browser mendukung fitur ini.");
+        setErrorMsg(`Kamera tidak dapat diakses: ${err.message || err.name}`);
       }
       setStatus("camera-error");
-      return false;
+      return;
     }
-  }, []);
 
-  const getGPS = useCallback(() => {
-    return new Promise<{ lat: number; lng: number; accuracy: number } | null>((resolve) => {
-      if (!navigator.geolocation) { resolve(null); return; }
+    // 3. Get GPS (non-blocking, fire and update)
+    if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-        () => resolve(null),
+        (pos) => setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+        () => {},
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
-    });
-  }, []);
+    }
 
-  const startDetection = useCallback(async (faceapi: any) => {
-    setStatus("detecting");
-    setFaceDetected(false);
-    const detectLoop = async () => {
-      if (!videoRef.current || !faceapi) return;
-      const options = new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.6 });
-      const detection = await faceapi.detectSingleFace(videoRef.current, options);
-      const detected = !!(detection && detection.score >= 0.6);
-      setFaceDetected(detected);
-      if (detected) setStatus("ready");
-      detectLoopRef.current = requestAnimationFrame(detectLoop);
-    };
-    detectLoopRef.current = requestAnimationFrame(detectLoop);
-  }, []);
-
-  const handleStart = useCallback(async () => {
-    if (hasCheckedOut) { toast.info("Absensi hari ini sudah selesai."); return; }
-    const faceapi = await loadFaceApiModel();
-    const cameraOk = await startCamera();
-    if (!cameraOk) return;
-    const coords = await getGPS();
-    if (!coords) toast.warning("Lokasi tidak terdeteksi. Koordinat akan kosong.");
-    setGps(coords);
-    if (faceapi) await startDetection(faceapi);
-    else setStatus("ready");
-  }, [hasCheckedOut, loadFaceApiModel, startCamera, getGPS, startDetection]);
+    // 4. Load face-api model in background (non-blocking)
+    try {
+      const faceapi = await import("face-api.js");
+      faceApiRef.current = faceapi;
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      setFaceApiReady(true);
+      startDetectionLoop(faceapi);
+    } catch {
+      // face-api unavailable — manual capture still works
+      setFaceApiReady(false);
+      setFaceDetected(true); // allow capture even without detection
+    }
+  }, [hasCheckedOut, startDetectionLoop]);
 
   const captureAndSubmit = useCallback(async () => {
     if (status === "submitting" || status === "done") return;
-    setStatus("capturing");
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+
+    setStatus("capturing");
+    if (detectLoopRef.current) {
+      cancelAnimationFrame(detectLoopRef.current);
+      detectLoopRef.current = null;
+    }
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 640;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
-    const base64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1]!;
-    setCapturedImage(canvas.toDataURL("image/jpeg", 0.7));
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+    const base64 = dataUrl.split(",")[1]!;
+    setCapturedImage(dataUrl);
     stopCamera();
     setStatus("submitting");
 
@@ -165,12 +185,18 @@ export default function AbsenPage() {
       onError: (err: any) => {
         const msg = err?.data?.error || err?.message || "Gagal menyimpan absensi.";
         toast.error(msg);
-        setStatus("ready");
+        setStatus("idle");
         setCapturedImage(null);
-        handleStart();
       },
     });
-  }, [status, gps, hasCheckedIn, checkIn, checkOut, queryClient, navigate, stopCamera, handleStart]);
+  }, [status, gps, hasCheckedIn, checkIn, checkOut, queryClient, navigate, stopCamera]);
+
+  const handleCancel = useCallback(() => {
+    stopCamera();
+    setStatus("idle");
+    setFaceDetected(false);
+    setGps(null);
+  }, [stopCamera]);
 
   if (hasCheckedOut && status === "idle") {
     return (
@@ -187,6 +213,9 @@ export default function AbsenPage() {
       </div>
     );
   }
+
+  const showCamera = status === "starting" || status === "live" || status === "capturing" || status === "submitting";
+  const canCapture = (status === "live") && (faceDetected || !faceApiReady);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -214,6 +243,8 @@ export default function AbsenPage() {
       </div>
 
       <div className="flex-1 px-5 pt-6 flex flex-col items-center">
+
+        {/* IDLE */}
         {status === "idle" && (
           <div className="flex flex-col items-center justify-center flex-1 text-center">
             <div className="w-32 h-32 rounded-full bg-[#FACC15]/20 border-4 border-dashed border-[#FACC15] flex items-center justify-center mb-6">
@@ -223,7 +254,7 @@ export default function AbsenPage() {
               {hasCheckedIn ? "Siap untuk Absen Keluar?" : "Siap untuk Absen Masuk?"}
             </h2>
             <p className="text-sm text-[#8C8573] mb-8 max-w-[260px]">
-              Kamera depan akan dibuka untuk mendeteksi wajah Anda secara otomatis.
+              Kamera depan akan dibuka untuk mengambil foto selfie Anda.
             </p>
             <button
               onClick={handleStart}
@@ -235,59 +266,92 @@ export default function AbsenPage() {
           </div>
         )}
 
-        {status === "loading-model" && (
-          <div className="flex flex-col items-center justify-center flex-1 text-center">
-            <Loader2 className="w-12 h-12 text-[#FACC15] animate-spin mb-4" />
-            <p className="text-[#4A4435] font-semibold">Memuat model deteksi wajah...</p>
-            <p className="text-[#8C8573] text-sm mt-1">Membutuhkan koneksi internet</p>
-          </div>
-        )}
-
+        {/* CAMERA ERROR */}
         {status === "camera-error" && (
           <div className="flex flex-col items-center justify-center flex-1 text-center px-4">
             <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
               <AlertCircle className="w-8 h-8 text-red-500" />
             </div>
-            <h2 className="text-lg font-bold text-[#4A4435] mb-2">Izin Kamera Diperlukan</h2>
+            <h2 className="text-lg font-bold text-[#4A4435] mb-2">Kamera Tidak Dapat Diakses</h2>
             <p className="text-sm text-[#8C8573] leading-relaxed mb-6">{errorMsg}</p>
-            <button onClick={() => { setStatus("idle"); setErrorMsg(""); }} className="bg-[#FACC15] text-[#4A4435] font-bold px-8 py-3 rounded-2xl">
+            <button
+              onClick={() => { setStatus("idle"); setErrorMsg(""); }}
+              className="bg-[#FACC15] text-[#4A4435] font-bold px-8 py-3 rounded-2xl"
+            >
               Coba Lagi
             </button>
           </div>
         )}
 
-        {(status === "detecting" || status === "ready" || status === "capturing" || status === "submitting") && (
+        {/* CAMERA VIEW: starting, live, capturing, submitting */}
+        {showCamera && (
           <div className="w-full flex flex-col items-center">
-            <div className="relative w-72 h-72 rounded-full overflow-hidden border-4 border-[#FACC15] shadow-xl mb-5">
-              <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" />
-              {faceDetected ? (
-                <div className="absolute inset-0 border-4 border-green-400 rounded-full pointer-events-none" />
-              ) : (
-                <div className="absolute inset-0 border-4 border-[#FACC15]/60 rounded-full pointer-events-none animate-pulse" />
+            <div className="relative w-72 h-72 rounded-full overflow-hidden border-4 border-[#FACC15] shadow-xl mb-5 bg-black">
+              <video
+                ref={videoCallbackRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+              />
+
+              {/* Loading overlay saat "starting" */}
+              {status === "starting" && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full">
+                  <div className="text-center">
+                    <Loader2 className="w-10 h-10 text-[#FACC15] animate-spin mx-auto mb-2" />
+                    <p className="text-white text-xs">Membuka kamera...</p>
+                  </div>
+                </div>
               )}
+
+              {/* Overlay saat submitting */}
               {status === "submitting" && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
                   <Loader2 className="w-12 h-12 text-white animate-spin" />
                 </div>
               )}
+
+              {/* Border indikator wajah */}
+              {status === "live" && (
+                faceDetected && faceApiReady ? (
+                  <div className="absolute inset-0 border-4 border-green-400 rounded-full pointer-events-none" />
+                ) : (
+                  <div className="absolute inset-0 border-4 border-[#FACC15]/60 rounded-full pointer-events-none animate-pulse" />
+                )
+              )}
             </div>
+
             <canvas ref={canvasRef} className="hidden" />
 
+            {/* Status deteksi wajah */}
             <div className="flex items-center gap-2 mb-5">
-              {faceDetected ? (
+              {status === "starting" ? (
                 <>
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-sm font-semibold text-green-600">Wajah Terdeteksi ✓</span>
+                  <div className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-pulse" />
+                  <span className="text-sm text-[#8C8573]">Menginisialisasi kamera...</span>
                 </>
+              ) : faceApiReady ? (
+                faceDetected ? (
+                  <>
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-sm font-semibold text-green-600">Wajah Terdeteksi ✓</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#FACC15] animate-pulse" />
+                    <span className="text-sm text-[#8C8573]">Posisikan wajah di dalam lingkaran...</span>
+                  </>
+                )
               ) : (
                 <>
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#FACC15] animate-pulse" />
-                  <span className="text-sm text-[#8C8573]">Posisikan wajah di dalam lingkaran...</span>
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-sm font-semibold text-[#4A4435]">Kamera aktif — siap foto</span>
                 </>
               )}
             </div>
 
-            {!faceDetected && (
+            {faceApiReady && !faceDetected && status === "live" && (
               <p className="text-xs text-[#8C8573] text-center max-w-[240px] mb-4">
                 Pastikan wajah Anda berada di tengah frame dengan pencahayaan yang cukup
               </p>
@@ -295,22 +359,26 @@ export default function AbsenPage() {
 
             <button
               onClick={captureAndSubmit}
-              disabled={!faceDetected || status === "submitting" || status === "capturing"}
+              disabled={status !== "live" || (faceApiReady && !faceDetected)}
               className="w-full h-14 rounded-2xl bg-[#FACC15] text-[#4A4435] font-bold text-base flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {status === "submitting" ? (
+              {(status as string) === "submitting" || (status as string) === "capturing" ? (
                 <><Loader2 className="w-5 h-5 animate-spin" /> Menyimpan...</>
               ) : (
-                <><Camera className="w-5 h-5" /> 📸 Ambil Foto & {hasCheckedIn ? "Keluar" : "Masuk"}</>
+                <><Camera className="w-5 h-5" /> Ambil Foto &amp; {hasCheckedIn ? "Keluar" : "Masuk"}</>
               )}
             </button>
 
-            <button onClick={() => { stopCamera(); setStatus("idle"); setFaceDetected(false); }} className="mt-3 text-sm text-[#8C8573] underline">
+            <button
+              onClick={handleCancel}
+              className="mt-3 text-sm text-[#8C8573] underline"
+            >
               Batalkan
             </button>
           </div>
         )}
 
+        {/* DONE */}
         {status === "done" && (
           <div className="flex flex-col items-center justify-center flex-1 text-center">
             {capturedImage && (
