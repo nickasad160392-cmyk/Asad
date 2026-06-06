@@ -31,10 +31,29 @@ jobs:
 
       - name: Build Frontend (React + Vite)
         working-directory: artifacts/attendance-app
-        env:
-          PORT: 8081
-          VITE_API_URL: https://asad--nickasad160392.replit.app
-        run: pnpm run build
+        run: |
+          cat > vite.config.ts << 'EOF'
+          import { defineConfig } from "vite";
+          import react from "@vitejs/plugin-react";
+          import tailwindcss from "@tailwindcss/vite";
+          import path from "path";
+
+          export default defineConfig({
+            base: "./",
+            plugins: [react(), tailwindcss()],
+            resolve: {
+              alias: {
+                "@": path.resolve(import.meta.dirname, "src"),
+              },
+              dedupe: ["react", "react-dom"],
+            },
+            build: {
+              outDir: path.resolve(import.meta.dirname, "dist"),
+              emptyOutDir: true,
+            },
+          });
+          EOF
+          pnpm run build
 
       - name: Setup Java JDK 17
         uses: actions/setup-java@v4
