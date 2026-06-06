@@ -32,19 +32,16 @@ jobs:
       - name: Build Frontend (React + Vite)
         working-directory: artifacts/attendance-app
         run: |
-          cat > vite.config.ts << 'EOF'
+          cat > vite.config.ts << 'VEOF'
           import { defineConfig } from "vite";
           import react from "@vitejs/plugin-react";
           import tailwindcss from "@tailwindcss/vite";
           import path from "path";
-
           export default defineConfig({
             base: "./",
             plugins: [react(), tailwindcss()],
             resolve: {
-              alias: {
-                "@": path.resolve(import.meta.dirname, "src"),
-              },
+              alias: { "@": path.resolve(import.meta.dirname, "src") },
               dedupe: ["react", "react-dom"],
             },
             build: {
@@ -52,7 +49,7 @@ jobs:
               emptyOutDir: true,
             },
           });
-          EOF
+          VEOF
           pnpm run build
 
       - name: Setup Java JDK 21
@@ -73,11 +70,11 @@ jobs:
       - name: Create Capacitor Config
         working-directory: artifacts/attendance-app
         run: |
-          cat > capacitor.config.ts << 'EOF'
+          cat > capacitor.config.ts << 'CEOF'
           import type { CapacitorConfig } from '@capacitor/cli';
           const config: CapacitorConfig = {
             appId: 'com.kantor.absensi',
-            appName: 'Absensi App',
+            appName: 'Absensi',
             webDir: 'dist',
             server: {
               url: 'https://asad--nickasad160392.replit.app',
@@ -85,7 +82,7 @@ jobs:
             },
           };
           export default config;
-          EOF
+          CEOF
 
       - name: Add Android Platform
         working-directory: artifacts/attendance-app
@@ -100,6 +97,26 @@ jobs:
         run: |
           MANIFEST="app/src/main/AndroidManifest.xml"
           sed -i 's|<application|<uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <application|' $MANIFEST
+
+      - name: Set App Name and Icon
+        working-directory: artifacts/attendance-app/android
+        run: |
+          sed -i 's|android:label="[^"]*"|android:label="Absensi"|g' app/src/main/AndroidManifest.xml
+          sed -i 's|<string name="app_name">.*</string>|<string name="app_name">Absensi</string>|g' app/src/main/res/values/strings.xml
+          pip install Pillow -q
+          python3 << 'PYEOF'
+          import urllib.request, os
+          from PIL import Image
+          urllib.request.urlretrieve("https://i.imgur.com/Kahuyyx.png", "/tmp/icon.png")
+          img = Image.open("/tmp/icon.png").convert("RGBA")
+          sizes = {"mipmap-mdpi":48,"mipmap-hdpi":72,"mipmap-xhdpi":96,"mipmap-xxhdpi":144,"mipmap-xxxhdpi":192}
+          for folder, size in sizes.items():
+              out = f"app/src/main/res/{folder}"
+              os.makedirs(out, exist_ok=True)
+              img.resize((size, size), Image.LANCZOS).save(f"{out}/ic_launcher.png")
+              img.resize((size, size), Image.LANCZOS).save(f"{out}/ic_launcher_round.png")
+              print(f"✅ {folder}: {size}x{size}")
+          PYEOF
 
       - name: Build APK
         working-directory: artifacts/attendance-app/android
