@@ -13,6 +13,20 @@ import { ArrowLeft, Camera, Loader2, MapPin, AlertCircle, CheckCircle2 } from "l
 
 const MODEL_URL = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights";
 
+const OFFICE_LAT = -8.128241;
+const OFFICE_LNG = 113.234113;
+const MAX_DISTANCE_METERS = 500;
+
+function calcDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 type AbsenStatus =
   | "idle"
   | "starting"
@@ -37,6 +51,7 @@ export default function AbsenPage() {
   const [faceDetected, setFaceDetected] = useState(false);
   const [faceApiReady, setFaceApiReady] = useState(false);
   const [gps, setGps] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [distanceMeters, setDistanceMeters] = useState<number | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   const checkIn = useCheckIn();
@@ -130,7 +145,12 @@ export default function AbsenPage() {
     // 3. Get GPS (non-blocking, fire and update)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+          setGps(coords);
+          const dist = calcDistanceMeters(coords.lat, coords.lng, OFFICE_LAT, OFFICE_LNG);
+          setDistanceMeters(dist);
+        },
         () => {},
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
@@ -196,6 +216,7 @@ export default function AbsenPage() {
     setStatus("idle");
     setFaceDetected(false);
     setGps(null);
+    setDistanceMeters(null);
   }, [stopCamera]);
 
   if (hasCheckedOut && status === "idle") {
@@ -233,11 +254,20 @@ export default function AbsenPage() {
             </p>
           </div>
         </div>
-        {gps && (
+        {gps && distanceMeters !== null && (
+          <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 ${distanceMeters <= MAX_DISTANCE_METERS ? "bg-white/40" : "bg-red-400/30"}`}>
+            <MapPin className="w-3.5 h-3.5 text-[#4A4435]" />
+            <span className="text-xs text-[#4A4435] font-medium">
+              {distanceMeters <= MAX_DISTANCE_METERS
+                ? `${Math.round(distanceMeters)}m dari kantor ✓`
+                : `${Math.round(distanceMeters)}m dari kantor — terlalu jauh`}
+            </span>
+          </div>
+        )}
+        {gps && distanceMeters === null && (
           <div className="flex items-center gap-1.5 bg-white/40 rounded-xl px-3 py-1.5">
             <MapPin className="w-3.5 h-3.5 text-[#4A4435]" />
             <span className="text-xs text-[#4A4435] font-medium">{gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}</span>
-            <span className="text-xs text-[#4A4435]/60 ml-1">±{Math.round(gps.accuracy)}m</span>
           </div>
         )}
       </div>
