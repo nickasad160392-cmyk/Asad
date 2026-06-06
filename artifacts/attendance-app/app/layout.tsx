@@ -11,15 +11,18 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
-  ],
+  themeColor: "#FACC15",
 };
 
 export const metadata: Metadata = {
-  title: "AttendTrack",
-  description: "Enterprise Employee Attendance",
+  title: "Absensi",
+  description: "Aplikasi Absensi Karyawan — PT. Lembayung Wanantara Padha",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Absensi",
+  },
 };
 
 export default function RootLayout({
@@ -29,9 +32,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" className="antialiased">
-      <body className={`${inter.variable} font-sans min-h-[100dvh] flex flex-col bg-slate-50 dark:bg-slate-900`}>
+      <body className={`${inter.variable} font-sans min-h-[100dvh] flex flex-col bg-[#FBF9F3]`}>
         <Providers>
-          <div className="flex-1 w-full max-w-[430px] mx-auto bg-background shadow-2xl relative flex flex-col overflow-hidden">
+          <div className="flex-1 w-full max-w-[430px] mx-auto bg-[#FBF9F3] shadow-2xl relative flex flex-col overflow-hidden min-h-[100dvh]">
             {children}
           </div>
         </Providers>

@@ -1,22 +1,24 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.1.0
-  description: Employee Attendance API
+  version: 0.2.0
+  description: Absensi API - PT. Lembayung Wanantara Padha
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+    description: Health check
   - name: auth
-    description: Authentication
+    description: Autentikasi
   - name: attendance
-    description: Attendance records
+    description: Catatan absensi
   - name: leave
-    description: Leave and permit requests
+    description: Izin dan cuti
   - name: users
-    description: User management
+    description: Manajemen karyawan
+  - name: notifications
+    description: Notifikasi
 
 paths:
   /healthz:
@@ -36,7 +38,7 @@ paths:
     post:
       operationId: login
       tags: [auth]
-      summary: Login with email/ID and password
+      summary: Login dengan email/ID dan password
       requestBody:
         required: true
         content:
@@ -45,13 +47,38 @@ paths:
               $ref: "#/components/schemas/LoginInput"
       responses:
         "200":
-          description: Logged in
+          description: Login berhasil
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthResult"
         "401":
-          description: Invalid credentials
+          description: Kredensial salah
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Registrasi akun karyawan baru
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registrasi berhasil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "400":
+          description: Data tidak valid
           content:
             application/json:
               schema:
@@ -61,10 +88,10 @@ paths:
     post:
       operationId: logout
       tags: [auth]
-      summary: Logout current session
+      summary: Logout
       responses:
         "200":
-          description: Logged out
+          description: Logout berhasil
           content:
             application/json:
               schema:
@@ -74,16 +101,16 @@ paths:
     get:
       operationId: getMe
       tags: [auth]
-      summary: Get current authenticated user
+      summary: Ambil data pengguna saat ini
       responses:
         "200":
-          description: Current user
+          description: Data pengguna
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/UserProfile"
         "401":
-          description: Not authenticated
+          description: Tidak terautentikasi
           content:
             application/json:
               schema:
@@ -93,22 +120,22 @@ paths:
     post:
       operationId: checkIn
       tags: [attendance]
-      summary: Employee check-in with selfie and GPS
+      summary: Clock-in dengan foto dan GPS
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AttendanceCheckInput"
+              $ref: "#/components/schemas/CheckInInput"
       responses:
         "201":
-          description: Checked in
+          description: Check-in berhasil
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AttendanceRecord"
         "400":
-          description: Already checked in or outside geofence
+          description: Gagal check-in
           content:
             application/json:
               schema:
@@ -118,22 +145,22 @@ paths:
     post:
       operationId: checkOut
       tags: [attendance]
-      summary: Employee check-out with selfie and GPS
+      summary: Clock-out dengan foto dan GPS
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AttendanceCheckInput"
+              $ref: "#/components/schemas/CheckOutInput"
       responses:
         "200":
-          description: Checked out
+          description: Check-out berhasil
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AttendanceRecord"
         "400":
-          description: Not checked in or outside geofence
+          description: Gagal check-out
           content:
             application/json:
               schema:
@@ -143,30 +170,51 @@ paths:
     get:
       operationId: getTodayAttendance
       tags: [attendance]
-      summary: Get today's attendance record for the current user
+      summary: Ambil catatan absensi hari ini
       responses:
         "200":
-          description: Today's attendance
+          description: Catatan hari ini (null jika belum absen)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AttendanceRecord"
+                nullable: true
+                oneOf:
+                  - $ref: "#/components/schemas/AttendanceRecord"
+                  - type: "null"
+
+  /attendance/cycle-summary:
+    get:
+      operationId: getCycleSummary
+      tags: [attendance]
+      summary: Rekap siklus aktif (7-6)
+      parameters:
+        - name: cycleStart
+          in: query
+          schema:
+            type: string
+          description: "Tanggal mulai siklus (YYYY-MM-DD), default siklus aktif"
+      responses:
+        "200":
+          description: Ringkasan siklus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleSummary"
 
   /attendance/history:
     get:
       operationId: getAttendanceHistory
       tags: [attendance]
-      summary: Get attendance history for current user
+      summary: Riwayat absensi per siklus
       parameters:
-        - name: month
+        - name: cycleStart
           in: query
-          required: false
           schema:
             type: string
-          description: "Month in YYYY-MM format"
+          description: "Tanggal mulai siklus (YYYY-MM-DD)"
       responses:
         "200":
-          description: Attendance records list
+          description: Daftar catatan absensi
           content:
             application/json:
               schema:
@@ -174,45 +222,27 @@ paths:
                 items:
                   $ref: "#/components/schemas/AttendanceRecord"
 
-  /attendance/monthly-summary:
-    get:
-      operationId: getMonthlySummary
-      tags: [attendance]
-      summary: Get monthly summary for current user
-      parameters:
-        - name: month
-          in: query
-          required: false
-          schema:
-            type: string
-          description: "Month in YYYY-MM format"
-      responses:
-        "200":
-          description: Monthly summary
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MonthlySummary"
-
   /attendance/admin/all:
     get:
-      operationId: adminGetAllAttendance
+      operationId: getAdminAttendance
       tags: [attendance]
-      summary: Admin - get all employees attendance
+      summary: "[Admin] Semua catatan absensi"
       parameters:
-        - name: month
+        - name: cycleStart
           in: query
-          required: false
           schema:
             type: string
         - name: userId
           in: query
-          required: false
           schema:
             type: integer
+        - name: date
+          in: query
+          schema:
+            type: string
       responses:
         "200":
-          description: All attendance records
+          description: Semua catatan absensi
           content:
             application/json:
               schema:
@@ -220,60 +250,73 @@ paths:
                 items:
                   $ref: "#/components/schemas/AttendanceRecord"
 
-  /leave-requests:
+  /attendance/admin/today:
     get:
-      operationId: getLeaveRequests
+      operationId: getAdminTodayAttendance
+      tags: [attendance]
+      summary: "[Admin] Absensi semua karyawan hari ini"
+      responses:
+        "200":
+          description: Catatan absensi hari ini semua karyawan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodayAttendanceOverview"
+
+  /leave:
+    get:
+      operationId: getMyLeaveRequests
       tags: [leave]
-      summary: Get current user's leave requests
+      summary: Daftar pengajuan izin saya
       parameters:
-        - name: month
+        - name: status
           in: query
-          required: false
           schema:
             type: string
       responses:
         "200":
-          description: Leave requests list
+          description: Daftar pengajuan izin
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/LeaveRequest"
-
     post:
       operationId: submitLeaveRequest
       tags: [leave]
-      summary: Submit a leave or permit request
+      summary: Ajukan izin/cuti
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LeaveRequestInput"
+              $ref: "#/components/schemas/LeaveInput"
       responses:
         "201":
-          description: Leave request submitted
+          description: Pengajuan berhasil
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/LeaveRequest"
 
-  /leave-requests/admin:
+  /leave/admin:
     get:
-      operationId: adminGetLeaveRequests
+      operationId: getAdminLeaveRequests
       tags: [leave]
-      summary: Admin - get all leave requests
+      summary: "[Admin] Semua pengajuan izin"
       parameters:
         - name: status
           in: query
-          required: false
           schema:
             type: string
-            enum: [pending, approved, rejected]
+        - name: userId
+          in: query
+          schema:
+            type: integer
       responses:
         "200":
-          description: All leave requests
+          description: Semua pengajuan izin
           content:
             application/json:
               schema:
@@ -281,30 +324,11 @@ paths:
                 items:
                   $ref: "#/components/schemas/LeaveRequest"
 
-  /leave-requests/{id}/approve:
+  /leave/{id}/approve:
     patch:
-      operationId: approveLeaveRequest
+      operationId: approveLeave
       tags: [leave]
-      summary: Admin - approve a leave request
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Approved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LeaveRequest"
-
-  /leave-requests/{id}/reject:
-    patch:
-      operationId: rejectLeaveRequest
-      tags: [leave]
-      summary: Admin - reject a leave request
+      summary: "[Admin] Setujui izin"
       parameters:
         - name: id
           in: path
@@ -312,14 +336,37 @@ paths:
           schema:
             type: integer
       requestBody:
-        required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RejectInput"
+              $ref: "#/components/schemas/AdminNoteInput"
       responses:
         "200":
-          description: Rejected
+          description: Izin disetujui
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+
+  /leave/{id}/reject:
+    patch:
+      operationId: rejectLeave
+      tags: [leave]
+      summary: "[Admin] Tolak izin"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminNoteInput"
+      responses:
+        "200":
+          description: Izin ditolak
           content:
             application/json:
               schema:
@@ -329,22 +376,27 @@ paths:
     get:
       operationId: getUsers
       tags: [users]
-      summary: Admin - get all users/employees
+      summary: "[Admin] Daftar semua karyawan"
+      parameters:
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
       responses:
         "200":
-          description: Users list
+          description: Daftar karyawan
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/User"
+                  $ref: "#/components/schemas/UserProfile"
 
   /users/{id}:
     get:
       operationId: getUserById
       tags: [users]
-      summary: Get a user by ID
+      summary: "[Admin] Detail karyawan"
       parameters:
         - name: id
           in: path
@@ -353,82 +405,201 @@ paths:
             type: integer
       responses:
         "200":
-          description: User
+          description: Data karyawan
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-
-  /dashboard/stats:
-    get:
-      operationId: getDashboardStats
-      tags: [attendance]
-      summary: Get dashboard stats for admin
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: "[Admin] Update data karyawan"
       parameters:
-        - name: month
-          in: query
-          required: false
+        - name: id
+          in: path
+          required: true
           schema:
-            type: string
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserInput"
       responses:
         "200":
-          description: Dashboard statistics
+          description: Data karyawan diperbarui
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardStats"
+                $ref: "#/components/schemas/UserProfile"
+
+  /users/{id}/reset-password:
+    post:
+      operationId: resetUserPassword
+      tags: [users]
+      summary: "[Admin] Reset password karyawan"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Password berhasil direset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /users/profile:
+    patch:
+      operationId: updateMyProfile
+      tags: [users]
+      summary: Update profil saya
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileInput"
+      responses:
+        "200":
+          description: Profil diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Daftar notifikasi saya
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Daftar notifikasi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NotificationItem"
+
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Tandai notifikasi sudah dibaca
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notifikasi ditandai dibaca
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationItem"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Tandai semua notifikasi sudah dibaca
+      responses:
+        "200":
+          description: Semua notifikasi ditandai dibaca
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
 
 components:
   schemas:
+    AdminNoteInput:
+      type: object
+      properties:
+        adminNote:
+          type: string
+
+    ResetPasswordInput:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword:
+          type: string
+
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
     ErrorResponse:
       type: object
+      required: [error]
       properties:
         error:
           type: string
-      required:
-        - error
 
     MessageResponse:
       type: object
+      required: [message]
       properties:
         message:
           type: string
-      required:
-        - message
 
     LoginInput:
       type: object
+      required: [identifier, password]
       properties:
         identifier:
           type: string
-          description: Email or employee ID
         password:
           type: string
-      required:
-        - identifier
-        - password
+
+    RegisterInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        phone:
+          type: string
 
     AuthResult:
       type: object
+      required: [user, message]
       properties:
         user:
-          $ref: "#/components/schemas/User"
+          $ref: "#/components/schemas/UserProfile"
         message:
           type: string
-      required:
-        - user
-        - message
 
-    User:
+    UserProfile:
       type: object
+      required: [id, employeeId, name, email, role, jabatan, isActive, createdAt]
       properties:
         id:
           type: integer
@@ -440,44 +611,81 @@ components:
           type: string
         role:
           type: string
-          enum: [employee, admin, hr]
+        jabatan:
+          type: string
+          nullable: true
         department:
           type: string
+          nullable: true
         position:
           type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
         avatarUrl:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         createdAt:
           type: string
-      required:
-        - id
-        - employeeId
-        - name
-        - email
-        - role
-        - department
-        - position
-        - createdAt
 
-    AttendanceCheckInput:
+    UpdateUserInput:
       type: object
+      properties:
+        name:
+          type: string
+        jabatan:
+          type: string
+        department:
+          type: string
+        phone:
+          type: string
+        isActive:
+          type: boolean
+
+    UpdateProfileInput:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+
+    CheckInInput:
+      type: object
+      required: [selfieBase64, latitude, longitude]
       properties:
         selfieBase64:
           type: string
-          description: Base64 encoded front camera photo
         latitude:
           type: number
         longitude:
           type: number
+        accuracy:
+          type: number
         notes:
-          type: ["string", "null"]
-      required:
-        - selfieBase64
-        - latitude
-        - longitude
+          type: string
+
+    CheckOutInput:
+      type: object
+      required: [selfieBase64, latitude, longitude]
+      properties:
+        selfieBase64:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        accuracy:
+          type: number
+        notes:
+          type: string
 
     AttendanceRecord:
       type: object
+      required: [id, userId, date, status, createdAt]
       properties:
         id:
           type: integer
@@ -485,48 +693,79 @@ components:
           type: integer
         date:
           type: string
-          description: Date in YYYY-MM-DD format
         checkInTime:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         checkOutTime:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         checkInSelfie:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         checkOutSelfie:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         checkInLat:
-          type: ["number", "null"]
+          type: number
+          nullable: true
         checkInLng:
-          type: ["number", "null"]
+          type: number
+          nullable: true
+        checkInAccuracy:
+          type: number
+          nullable: true
         checkOutLat:
-          type: ["number", "null"]
+          type: number
+          nullable: true
         checkOutLng:
-          type: ["number", "null"]
+          type: number
+          nullable: true
+        checkOutAccuracy:
+          type: number
+          nullable: true
         status:
           type: string
-          enum: [present, late, absent, permit, holiday]
         latenessMinutes:
-          type: ["integer", "null"]
+          type: integer
+          nullable: true
         overtimeMinutes:
-          type: ["integer", "null"]
-        workHours:
-          type: ["number", "null"]
-        notes:
-          type: ["string", "null"]
-        user:
-          $ref: "#/components/schemas/User"
-      required:
-        - id
-        - userId
-        - date
-        - status
-
-    MonthlySummary:
-      type: object
-      properties:
-        month:
+          type: integer
+          nullable: true
+        workMinutes:
+          type: integer
+          nullable: true
+        cycleStart:
           type: string
-        totalWorkDays:
+          nullable: true
+        cycleEnd:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserProfile"
+          nullable: true
+
+    CycleSummary:
+      type: object
+      required: [cycleStart, cycleEnd, cycleLabel, totalWorkMinutes, totalOvertimeMinutes, totalLatenessMinutes, permitDays, presentDays, lateDays, absentDays]
+      properties:
+        cycleStart:
+          type: string
+        cycleEnd:
+          type: string
+        cycleLabel:
+          type: string
+        totalWorkMinutes:
+          type: integer
+        totalOvertimeMinutes:
+          type: integer
+        totalLatenessMinutes:
+          type: integer
+        permitDays:
           type: integer
         presentDays:
           type: integer
@@ -534,54 +773,30 @@ components:
           type: integer
         absentDays:
           type: integer
-        permitDays:
-          type: integer
-        totalWorkHours:
-          type: number
-        totalOvertimeMinutes:
-          type: integer
-        totalLatenessMinutes:
-          type: integer
         records:
           type: array
           items:
             $ref: "#/components/schemas/AttendanceRecord"
-      required:
-        - month
-        - totalWorkDays
-        - presentDays
-        - lateDays
-        - absentDays
-        - permitDays
-        - totalWorkHours
-        - totalOvertimeMinutes
-        - totalLatenessMinutes
-        - records
 
-    LeaveRequestInput:
+    LeaveInput:
       type: object
+      required: [type, startDate, endDate, reason]
       properties:
         type:
           type: string
-          enum: [sick, annual, personal, emergency]
         startDate:
           type: string
-          description: YYYY-MM-DD
         endDate:
           type: string
-          description: YYYY-MM-DD
         reason:
           type: string
         attachmentBase64:
-          type: ["string", "null"]
-      required:
-        - type
-        - startDate
-        - endDate
-        - reason
+          type: string
+          nullable: true
 
     LeaveRequest:
       type: object
+      required: [id, userId, type, startDate, endDate, reason, status, createdAt]
       properties:
         id:
           type: integer
@@ -589,7 +804,6 @@ components:
           type: integer
         type:
           type: string
-          enum: [sick, annual, personal, emergency]
         startDate:
           type: string
         endDate:
@@ -598,60 +812,61 @@ components:
           type: string
         status:
           type: string
-          enum: [pending, approved, rejected]
+        adminNote:
+          type: string
+          nullable: true
         rejectionReason:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         reviewedBy:
-          type: ["integer", "null"]
+          type: integer
+          nullable: true
         reviewedAt:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         attachmentBase64:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         createdAt:
           type: string
         user:
-          $ref: "#/components/schemas/User"
-      required:
-        - id
-        - userId
-        - type
-        - startDate
-        - endDate
-        - reason
-        - status
-        - createdAt
+          $ref: "#/components/schemas/UserProfile"
+          nullable: true
 
-    RejectInput:
+    TodayAttendanceOverview:
       type: object
+      required: [date, totalEmployees, checkedIn, checkedOut, notYet, records]
       properties:
-        reason:
-          type: string
-
-    DashboardStats:
-      type: object
-      properties:
-        month:
+        date:
           type: string
         totalEmployees:
           type: integer
-        presentToday:
+        checkedIn:
           type: integer
-        lateToday:
+        checkedOut:
           type: integer
-        absentToday:
+        notYet:
           type: integer
-        pendingLeaveRequests:
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceRecord"
+
+    NotificationItem:
+      type: object
+      required: [id, userId, title, message, type, isRead, createdAt]
+      properties:
+        id:
           type: integer
-        monthlyAttendanceRate:
-          type: number
-        avgWorkHours:
-          type: number
-      required:
-        - month
-        - totalEmployees
-        - presentToday
-        - lateToday
-        - absentToday
-        - pendingLeaveRequests
-        - monthlyAttendanceRate
-        - avgWorkHours
+        userId:
+          type: integer
+        title:
+          type: string
+        message:
+          type: string
+        type:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string

@@ -1,0 +1,2 @@
+- [Absensi app stack](absensi-stack.md) — Next.js 15 + Express 5, yellow #FACC15 brand, Indonesian UI, PT. Lembayung Wanantara Padha
+- [Absensi type patterns](absensi-types.md) — TodayAttendanceOverview.records[], user info nested, UpdateUserInput no role field

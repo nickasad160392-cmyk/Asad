@@ -1,0 +1,19 @@
+{
+  "name": "Absensi — PT. Lembayung Wanantara Padha",
+  "short_name": "Absensi",
+  "description": "Aplikasi Absensi Karyawan PT. Lembayung Wanantara Padha",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF9F3",
+  "theme_color": "#FACC15",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
