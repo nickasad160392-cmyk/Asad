@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Attendance App API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: attendance
+    description: Attendance records
+  - name: leave
+    description: Leave requests
+  - name: users
+    description: User management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,381 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /attendance/check-in:
+    post:
+      operationId: checkIn
+      tags: [attendance]
+      summary: Check in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceInput"
+      responses:
+        "200":
+          description: Check-in successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/check-out:
+    post:
+      operationId: checkOut
+      tags: [attendance]
+      summary: Check out
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceInput"
+      responses:
+        "200":
+          description: Check-out successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/today:
+    get:
+      operationId: getTodayAttendance
+      tags: [attendance]
+      summary: Get today's attendance
+      responses:
+        "200":
+          description: Today's attendance record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/history:
+    get:
+      operationId: getAttendanceHistory
+      tags: [attendance]
+      summary: Get attendance history
+      parameters:
+        - name: cycleStart
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Attendance history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/cycle-summary:
+    get:
+      operationId: getCycleSummary
+      tags: [attendance]
+      summary: Get cycle summary
+      parameters:
+        - name: cycleStart
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cycle summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleSummary"
+
+  /leave:
+    get:
+      operationId: getMyLeaveRequests
+      tags: [leave]
+      summary: Get my leave requests
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: My leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveRequest"
+    post:
+      operationId: submitLeaveRequest
+      tags: [leave]
+      summary: Submit leave request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveInput"
+      responses:
+        "201":
+          description: Leave request submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+
+  /admin/attendance/today:
+    get:
+      operationId: getAdminTodayAttendance
+      tags: [users]
+      summary: Get all today's attendance (admin)
+      responses:
+        "200":
+          description: Today's attendance for all users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTodayAttendance"
+
+  /admin/attendance:
+    get:
+      operationId: getAdminAttendance
+      tags: [users]
+      summary: Get attendance records (admin)
+      parameters:
+        - name: cycleStart
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Attendance records with user info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminAttendanceRecord"
+
+  /admin/leave:
+    get:
+      operationId: getAdminLeaveRequests
+      tags: [leave]
+      summary: Get all leave requests (admin)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: All leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminLeaveRequest"
+
+  /admin/leave/{id}/approve:
+    post:
+      operationId: approveLeave
+      tags: [leave]
+      summary: Approve leave request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveActionInput"
+      responses:
+        "200":
+          description: Leave request approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLeaveRequest"
+
+  /admin/leave/{id}/reject:
+    post:
+      operationId: rejectLeave
+      tags: [leave]
+      summary: Reject leave request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveActionInput"
+      responses:
+        "200":
+          description: Leave request rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLeaveRequest"
+
+  /admin/users:
+    get:
+      operationId: getUsers
+      tags: [users]
+      summary: Get all users (admin)
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserProfile"
+
+  /admin/users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /admin/users/{id}/reset-password:
+    post:
+      operationId: resetUserPassword
+      tags: [users]
+      summary: Reset user password (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetInput"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +412,263 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    LoginInput:
+      type: object
+      properties:
+        identifier:
+          type: string
+        password:
+          type: string
+      required: [identifier, password]
+
+    RegisterInput:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        phone:
+          type: ["string", "null"]
+      required: [name, email, password]
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        jabatan:
+          type: ["string", "null"]
+        position:
+          type: ["string", "null"]
+        employeeId:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        isActive:
+          type: ["boolean", "null"]
+      required: [id, name, email, role]
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserProfile"
+        token:
+          type: ["string", "null"]
+      required: [user]
+
+    AttendanceInput:
+      type: object
+      properties:
+        selfieBase64:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        accuracy:
+          type: ["number", "null"]
+      required: [selfieBase64, latitude, longitude]
+
+    AttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        date:
+          type: string
+        checkInTime:
+          type: ["string", "null"]
+        checkOutTime:
+          type: ["string", "null"]
+        status:
+          type: string
+        checkInSelfie:
+          type: ["string", "null"]
+        checkInLatitude:
+          type: ["number", "null"]
+        checkInLongitude:
+          type: ["number", "null"]
+        workMinutes:
+          type: ["integer", "null"]
+        overtimeMinutes:
+          type: ["integer", "null"]
+        latenessMinutes:
+          type: ["integer", "null"]
+      required: [id, userId, date, status]
+
+    CycleSummary:
+      type: object
+      properties:
+        cycleLabel:
+          type: string
+        cycleStart:
+          type: string
+        presentDays:
+          type: integer
+        lateDays:
+          type: integer
+        permitDays:
+          type: integer
+        absentDays:
+          type: integer
+        totalWorkMinutes:
+          type: integer
+        totalOvertimeMinutes:
+          type: integer
+        totalLatenessMinutes:
+          type: integer
+      required: [cycleLabel, cycleStart, presentDays, lateDays, permitDays, absentDays, totalWorkMinutes, totalOvertimeMinutes, totalLatenessMinutes]
+
+    LeaveInput:
+      type: object
+      properties:
+        type:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        reason:
+          type: string
+      required: [type, startDate, endDate, reason]
+
+    LeaveRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+        adminNote:
+          type: ["string", "null"]
+        createdAt:
+          type: ["string", "null"]
+      required: [id, userId, type, startDate, endDate, reason, status]
+
+    AdminLeaveRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+        adminNote:
+          type: ["string", "null"]
+        createdAt:
+          type: ["string", "null"]
+        user:
+          type: ["object", "null"]
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            jabatan:
+              type: ["string", "null"]
+            employeeId:
+              type: ["string", "null"]
+          required: [id, name]
+      required: [id, userId, type, startDate, endDate, reason, status]
+
+    LeaveActionInput:
+      type: object
+      properties:
+        adminNote:
+          type: ["string", "null"]
+
+    AdminTodayAttendance:
+      type: object
+      properties:
+        date:
+          type: string
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminAttendanceRecord"
+      required: [date, records]
+
+    AdminAttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        date:
+          type: string
+        checkInTime:
+          type: ["string", "null"]
+        checkOutTime:
+          type: ["string", "null"]
+        status:
+          type: string
+        workMinutes:
+          type: ["integer", "null"]
+        overtimeMinutes:
+          type: ["integer", "null"]
+        latenessMinutes:
+          type: ["integer", "null"]
+        user:
+          type: ["object", "null"]
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            jabatan:
+              type: ["string", "null"]
+            employeeId:
+              type: ["string", "null"]
+          required: [id, name]
+      required: [id, userId, date, status]
+
+    UserUpdate:
+      type: object
+      properties:
+        jabatan:
+          type: ["string", "null"]
+        role:
+          type: ["string", "null"]
+        isActive:
+          type: ["boolean", "null"]
+
+    PasswordResetInput:
+      type: object
+      properties:
+        newPassword:
+          type: string
+      required: [newPassword]

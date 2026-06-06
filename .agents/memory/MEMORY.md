@@ -1,0 +1,2 @@
+- [DB package build requirement](db-build-requirement.md) — @workspace/db must be built (tsc composite) before api-server typecheck can resolve its exports
+- [API server auth pattern](api-server-auth.md) — Express 5 req.params.id is string|string[]; use String() cast; JWT in Bearer header; cookies via cookie-parser
