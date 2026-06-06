@@ -79,8 +79,10 @@ jobs:
             appId: 'com.kantor.absensi',
             appName: 'Absensi App',
             webDir: 'dist',
-            android: { allowMixedContent: true },
-            server: { androidScheme: 'https', cleartext: true },
+            server: {
+              url: 'https://asad--nickasad160392.replit.app',
+              cleartext: true,
+            },
           };
           export default config;
           EOF
