@@ -2,6 +2,7 @@
   "name": "absensi-lwp",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.api.json --noEmit && vite build",
