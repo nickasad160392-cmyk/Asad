@@ -13,6 +13,16 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          query: ["@tanstack/react-query"],
+          router: ["wouter"],
+        },
+      },
+    },
   },
   server: {
     port: 5173,
